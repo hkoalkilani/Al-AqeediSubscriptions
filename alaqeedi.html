@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Al-Aqeedi Subscriptions</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+
+    <style>
+        :root { --main: #00d2ff; --bg: #0b0e14; --card: #161b22; }
+        * { box-sizing: border-box; font-family: sans-serif; -webkit-tap-highlight-color: transparent; }
+        body { background: var(--bg); color: white; margin: 0; text-align: center; }
+        .hidden { display: none !important; }
+        header { padding: 15px; border-bottom: 2px solid var(--main); font-weight: bold; font-size: 20px; }
+        .container { padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        .card { background: var(--card); padding: 20px; border-radius: 15px; border: 1px solid #333; width: 100%; max-width: 400px; margin-top: 20px; }
+        input, select, .btn { width: 100%; padding: 15px; margin: 10px 0; border-radius: 10px; border: 1px solid #444; background: #0d1117; color: white; font-size: 16px; }
+        .btn { background: var(--main); color: #000; border: none; font-weight: bold; cursor: pointer; }
+        .btn:active { background: #00b8e6; transform: scale(0.95); }
+        .tabs { display: flex; background: #000; border-radius: 10px; padding: 5px; margin-bottom: 15px; }
+        .tab { flex: 1; padding: 10px; cursor: pointer; border-radius: 8px; color: #666; }
+        .tab.active { background: var(--main); color: #000; }
+        .order-item { background: #000; padding: 10px; margin: 8px 0; border-radius: 8px; border-right: 3px solid var(--main); text-align: right; font-size: 13px; }
+        .support { position: fixed; bottom: 15px; left: 15px; background: #24A1DE; color: #fff; padding: 10px 20px; border-radius: 50px; text-decoration: none; font-size: 14px; z-index: 1000; }
+        h4 { margin: 10px 0; color: var(--main); border-bottom: 1px solid #333; padding-bottom: 5px; }
+    </style>
+</head>
+<body>
+
+<header>Al-Aqeedi Subscriptions</header>
+
+<div class="container">
+    <div id="p-auth" class="card">
+        <div class="tabs">
+            <div id="b-login" class="tab active" onclick="setMode('login')">دخول</div>
+            <div id="b-reg" class="tab" onclick="setMode('reg')">تسجيل</div>
+        </div>
+        <div id="auth-main">
+            <input type="text" id="i-name" class="hidden" placeholder="الاسم الكامل">
+            <input type="email" id="i-email" placeholder="البريد الإلكتروني">
+            <input type="password" id="i-pass" placeholder="كلمة المرور">
+            <button class="btn" onclick="doAuth()">استمرار</button>
+        </div>
+        <div id="p-otp" class="hidden">
+            <hr>
+            <p>كود التحقق (وصلك بالإيميل):</p>
+            <input type="text" id="i-otp" placeholder="000000" style="text-align:center; letter-spacing:5px;">
+            <button class="btn" onclick="checkOtp()">تأكيد الحساب</button>
+        </div>
+        <p id="msg" style="color:var(--main); font-size:12px; margin-top:10px;"></p>
+    </div>
+
+    <div id="p-store" class="hidden" style="width:100%; max-width:600px;">
+        <div class="card">
+            <h4>اشتراكات شاهد VIP 🎬</h4>
+            <select id="s-shahid">
+                <option value="15">حساب على ايميلك - 15﷼</option>
+                <option value="7">ملف خاص - 7﷼</option>
+                <option value="5">ملف مشترك - 5﷼</option>
+            </select>
+            <button class="btn" onclick="goPay('شاهد VIP', document.getElementById('s-shahid').options[document.getElementById('s-shahid').selectedIndex].text)">اطلب الآن</button>
+        </div>
+
+        <div class="card">
+            <h4>نتفلكس ملفات 🎥</h4>
+            <select id="s-netflix">
+                <option value="7">ملف خاص - 7﷼</option>
+                <option value="5">ملف مشترك - 5﷼</option>
+            </select>
+            <button class="btn" onclick="goPay('نتفلكس', document.getElementById('s-netflix').options[document.getElementById('s-netflix').selectedIndex].text)">اطلب الآن</button>
+        </div>
+
+        <div class="card">
+            <h4>سناب بلس 👻</h4>
+            <select id="s-snap">
+                <option value="18">3 أشهر - 18﷼</option>
+                <option value="30">6 أشهر - 30﷼</option>
+            </select>
+            <button class="btn" onclick="goPay('سناب بلس', document.getElementById('s-snap').options[document.getElementById('s-snap').selectedIndex].text)">اطلب الآن</button>
+        </div>
+
+        <div class="card" style="text-align:right;">
+            <h4>📦 طلباتي:</h4>
+            <div id="orders-list">لا توجد طلبات.</div>
+        </div>
+        <button class="btn" style="background:#444; color:#fff; width:120px;" onclick="logout()">خروج</button>
+    </div>
+
+    <div id="p-pay" class="hidden card">
+        <h3 id="pay-item"></h3>
+        <p style="font-size:14px; color: var(--main);">اختر طريقة الدفع وحول المبلغ:</p>
+        
+        <div style="text-align: right; font-size: 13px; background: #000; padding: 12px; border-radius: 10px; border: 1px solid #333; line-height: 1.6;">
+            <p><b>🟡 يور باي:</b> <span style="color:#fff;">560765731</span></p>
+            <hr style="border: 0.1px solid #222;">
+            <p><b>🔵 إيبان الراجحي:</b><br><small style="color:#fff; font-size: 11px;">SA6180206641142222121016</small></p>
+            <hr style="border: 0.1px solid #222;">
+            <p><b>🟠 أيدي بينانس:</b> <span style="color:#fff;">1015448881</span></p>
+        </div>
+
+        <input type="text" id="i-tg" placeholder="يوزرك في تليجرام (@)">
+        <p style="font-size:12px; color:#888; margin-top: 15px;">ارفع صورة التحويل:</p>
+        <input type="file" id="i-file" accept="image/*">
+        <button class="btn" onclick="sendOrder()">إرسال الطلب</button>
+        <button class="btn" style="background:#222; color:#fff;" onclick="location.reload()">إلغاء</button>
+    </div>
+</div>
+
+<a href="https://t.me/K_NN_P" class="support" target="_blank">خدمة العملاء</a>
+
+<script>
+    // الإعدادات الجديدة الخاصة بك
+    const config = { databaseURL: "https://al-aqeedi-default-rtdb.firebaseio.com", projectId: "al-aqeedi" };
+    firebase.initializeApp(config);
+    const db = firebase.database();
+    emailjs.init("sSnTyGTQfemnS36-N");
+
+    const TG_TOKEN = "7940416133:AAGFmrtNpAo6NerazwAYr69hn9lcYxtzMno";
+    const TG_ID = "8285886220";
+
+    let mode = 'login', code, temp, activeItem;
+
+    window.setMode = (m) => {
+        mode = m;
+        document.getElementById('b-login').className = m==='login'?'tab active':'tab';
+        document.getElementById('b-reg').className = m==='reg'?'tab active':'tab';
+        document.getElementById('i-name').classList.toggle('hidden', m==='login');
+    };
+
+    window.doAuth = async () => {
+        const e = document.getElementById('i-email').value;
+        const p = document.getElementById('i-pass').value;
+        const n = document.getElementById('i-name').value;
+        if(!e || !p) return alert("يرجى إكمال البيانات");
+
+        const safeE = e.replace(/\./g, '_');
+        document.getElementById('msg').innerText = "⏳ جاري التحقق...";
+
+        try {
+            const snap = await db.ref('users/' + safeE).once('value');
+            const u = snap.val();
+
+            if(mode === 'login') {
+                if(!u) return alert("الحساب غير موجود! سجل حساب جديد.");
+                if(u.password !== p) return alert("كلمة المرور خطأ!");
+            } else {
+                if(u) return alert("هذا الإيميل مسجل مسبقاً!");
+            }
+
+            code = Math.floor(100000 + Math.random()*900000);
+            emailjs.send("service_yedq741", "template_smh8hp7", {
+                to_name: mode==='reg'?n:u.name, to_email: e, verification_code: code
+            }).then(() => {
+                temp = {name: mode==='reg'?n:u.name, email:e, password:p};
+                document.getElementById('auth-main').classList.add('hidden');
+                document.getElementById('p-otp').classList.remove('hidden');
+                document.getElementById('msg').innerText = "✅ أرسلنا الكود لإيميلك";
+            });
+        } catch(err) { alert("خطأ في الاتصال بالإنترنت"); }
+    };
+
+    window.checkOtp = () => {
+        if(document.getElementById('i-otp').value == code) {
+            const safeE = temp.email.replace(/\./g, '_');
+            if(mode === 'reg') db.ref('users/' + safeE).set(temp);
+            localStorage.setItem('hk_user', JSON.stringify(temp));
+            location.reload();
+        } else alert("الكود خطأ!");
+    };
+
+    window.goPay = (category, itemDetails) => {
+        activeItem = {item: category, details: itemDetails};
+        document.getElementById('pay-item').innerText = itemDetails;
+        document.getElementById('p-store').classList.add('hidden');
+        document.getElementById('p-pay').classList.remove('hidden');
+    };
+
+    window.sendOrder = async () => {
+        const f = document.getElementById('i-file').files[0];
+        const tg = document.getElementById('i-tg').value;
+        if(!f || !tg) return alert("ارفع الصورة واكتب يوزرك");
+
+        const u = JSON.parse(localStorage.getItem('hk_user'));
+        const safeE = u.email.replace(/\./g, '_');
+
+        db.ref('orders/' + safeE).push({ item: activeItem.details, date: new Date().toLocaleString(), tg: tg });
+
+        const fd = new FormData();
+        fd.append('chat_id', TG_ID);
+        fd.append('photo', f);
+        fd.append('caption', `🔥 طلب جديد\n👤 العميل: ${u.name}\n📦 المنتج: ${activeItem.details}\n📱 تليجرام: ${tg}`);
+
+        await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendPhoto`, {method:'POST', body:fd});
+        alert("تم الإرسال بنجاح! سيتم التواصل معك قريباً.");
+        location.reload();
+    };
+
+    window.logout = () => { localStorage.removeItem('hk_user'); location.reload(); };
+
+    window.onload = async () => {
+        const u = localStorage.getItem('hk_user');
+        if(u) {
+            const user = JSON.parse(u);
+            document.getElementById('p-auth').classList.add('hidden');
+            document.getElementById('p-store').classList.remove('hidden');
+            
+            const snap = await db.ref('orders/' + user.email.replace(/\./g, '_')).once('value');
+            if(snap.exists()) {
+                document.getElementById('orders-list').innerHTML = "";
+                snap.forEach(c => {
+                    const o = c.val();
+                    document.getElementById('orders-list').innerHTML += `<div class="order-item">✅ ${o.item} <br><small>${o.date}</small></div>`;
+                });
+            }
+        }
+    };
+</script>
+</body>
+</html>
